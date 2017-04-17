@@ -1,11 +1,10 @@
 import java.awt.EventQueue;
+import java.awt.FileDialog;
 
 import javax.swing.JFrame;
-import javax.swing.JOptionPane;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.swing.JButton;
@@ -19,16 +18,19 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.awt.event.ActionEvent;
 import java.awt.Color;
 import java.awt.Desktop;
 
 import javax.swing.JTextField;
 import javax.swing.JLabel;
-import javax.swing.JTextPane;
+import javax.swing.JOptionPane;
 
 public class Frame1 {
 
@@ -39,18 +41,18 @@ public class Frame1 {
 	private byte[] ivBytes = new byte[] { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00 };
 	// set default ket
-	// byte[] keyBytesDefault = new byte[] { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
-	// 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-	// 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17 };
-	// setdefaultplaintext
-	// byte[] plainTextDefault = "default".getBytes();
 	// key
 	byte[] keyBytes = null;
 	// plaintext
 	byte[] inputData = null;
 	private JTextField textFieldResult;
-	private String saveTo= null;
-	private String filename=null;
+	private String saveTo = null;
+	private String filename = null;
+	private String extensionName = null;
+	private String folderName = null;
+	private JLabel labelLoading = null;
+	private boolean isKeyUnlimitedVersion = false;
+	private JButton buttonResult;
 
 	/**
 	 * Launch the application.
@@ -75,20 +77,49 @@ public class Frame1 {
 		initialize();
 	}
 
+	static void setFinalStatic(Field field, Object newValue) throws Exception {
+		field.setAccessible(true);
+
+		Field modifiersField = Field.class.getDeclaredField("modifiers");
+		modifiersField.setAccessible(true);
+		modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+
+		field.set(null, newValue);
+	}
+
 	/**
 	 * Initialize the contents of the frame.
 	 */
 	private void initialize() {
-		// frame
+
+		int max;
+		try {
+			max = Cipher.getMaxAllowedKeyLength("AES");
+			if (max > 128) {
+				isKeyUnlimitedVersion = true;
+			}
+		} catch (NoSuchAlgorithmException e3) {
+			// TODO Auto-generated catch block
+			e3.printStackTrace();
+		}
+
+		try {
+			// setFinalStatic(Boolean.class.getField("FALSE"), true);
+		} catch (Exception e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+		}
+
 		frame = new JFrame();
 		frame.setBounds(100, 100, 530, 450);
-		
+
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.getContentPane().setLayout(null);
 		frame.setResizable(false);
 		// ======Input Data Section=====
 		// text field for data
 		textFieldData = new JTextField();
+		textFieldData.setEnabled(false);
 		textFieldData.setBounds(164, 35, 202, 20);
 		frame.getContentPane().add(textFieldData);
 		textFieldData.setColumns(10);
@@ -109,6 +140,7 @@ public class Frame1 {
 		buttonBrowseData.addActionListener(new ActionListener() {
 
 			public void actionPerformed(ActionEvent e) {
+				labelTextWarning.setText("");
 				JFileChooser chooser = new JFileChooser(new File(System.getProperty("user.home") + "\\Desktop"));
 				// chooser.setCurrentDirectory(new java.io.File("."));
 				chooser.setDialogTitle("Select file to process");
@@ -116,30 +148,42 @@ public class Frame1 {
 
 				if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
 					File dataFile = chooser.getSelectedFile();
-					filename=dataFile.getName();
+					filename = dataFile.getName();
+
 					String absPath = dataFile.getAbsolutePath();
+
+					extensionName = filename.substring(filename.indexOf("."));
+					System.out.println(extensionName);
 					textFieldData.setText(absPath);
 
 					try {
 						// get byte from plaintext
 						inputData = Files.readAllBytes(Paths.get(absPath));
-
+						System.out.println(inputData.length);
 					} catch (IOException e1) {
 						// TODO Auto-generated catch block
 						e1.printStackTrace();
 					}
 
+					if (inputData != null && keyBytes != null) {
+						buttonResult.setEnabled(true);
+					} else {
+						buttonResult.setEnabled(false);
+					}
+
 				} else {
+					saveTo = "";
 					System.out.println("No Selection ");
 				}
 			}
 		});
 		frame.getContentPane().add(buttonBrowseData);
-		
+
 		// ======Key Section=====
-		
+
 		// textfield for key
 		textFieldKey = new JTextField();
+		textFieldKey.setEnabled(false);
 		textFieldKey.setBounds(164, 98, 202, 20);
 		textFieldKey.setColumns(10);
 		frame.getContentPane().add(textFieldKey);
@@ -177,18 +221,34 @@ public class Frame1 {
 
 						String stringInputKey = readFile(absPath);
 						int keylength = stringInputKey.length();
+						// JOptionPane.showMessageDialog(null, "Your java
+						// version can't process key more than 128 bit. Please
+						// install JCE Policy");
 						if (keylength == 32 || keylength == 48 || keylength == 64) {
-							if (isHex(stringInputKey)) {
-								System.out.println(stringInputKey);
-								keyBytes = hexStringToByteArray(stringInputKey);
+							if (keylength != 32 && !isKeyUnlimitedVersion) {
+								JOptionPane.showMessageDialog(null,
+										"Your java version can't process key more than 128 bit. Please install JCE Policy");
 							} else {
-								System.err.println(
-										"AES key [" + stringInputKey + "] must be 32 or 48 or 64 hex digits long.");
+								if (isHex(stringInputKey)) {
+									System.out.println(stringInputKey);
+									keyBytes = hexStringToByteArray(stringInputKey);
+									System.out.println(Arrays.toString(keyBytes));
+								} else {
+									System.err.println(
+											"AES key [" + stringInputKey + "] must be 32 or 48 or 64 hex digits long.");
 
+								}
 							}
+
 						} else {
 							labelKeyWarning.setText("Key must be 32 or 48 or 64 length in hex digit");
 							labelKeyWarning.setForeground(Color.RED);
+						}
+
+						if (inputData != null && keyBytes != null) {
+							buttonResult.setEnabled(true);
+						} else {
+							buttonResult.setEnabled(false);
 						}
 
 					} catch (IOException e1) {
@@ -197,6 +257,7 @@ public class Frame1 {
 					}
 
 				} else {
+					saveTo = "";
 					System.out.println("No Selection ");
 				}
 
@@ -205,35 +266,40 @@ public class Frame1 {
 		frame.getContentPane().add(buttonBrowseKey);
 
 		// ======Result Section=====
-		
+
 		JLabel lblResultFolder = new JLabel("Result Folder");
 		lblResultFolder.setBounds(50, 163, 104, 14);
 		frame.getContentPane().add(lblResultFolder);
 
 		textFieldResult = new JTextField();
+		textFieldResult.setEnabled(false);
 		textFieldResult.setColumns(10);
 		textFieldResult.setBounds(164, 160, 202, 20);
 		frame.getContentPane().add(textFieldResult);
 
-		JButton buttonResult = new JButton("Browse");
+		JLabel labelResultWarning = new JLabel("");
+		labelResultWarning.setBounds(50, 187, 415, 14);
+		frame.getContentPane().add(labelResultWarning);
+
+		buttonResult = new JButton("Browse");
+		if (inputData != null && keyBytes != null) {
+			buttonResult.setEnabled(true);
+		} else {
+			buttonResult.setEnabled(false);
+		}
+
 		buttonResult.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				// TODO Auto-generated method stub
-				
-				JFileChooser chooser = new JFileChooser();
-				// chooser.setCurrentDirectory(new java.io.File("."));
-				chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-				chooser.setDialogTitle("Select file to process");
-				chooser.setAcceptAllFileFilterUsed(false);
-
-				if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-					
-					File filePath = chooser.getSelectedFile();
-					String absPath = filePath.getAbsolutePath();
-					textFieldResult.setText(absPath);
-					saveTo = absPath;
-				} else {
-					System.out.println("No Selection ");
+				labelResultWarning.setText("");
+				FileDialog fDialog = new FileDialog(frame, "Save", FileDialog.SAVE);
+				fDialog.setVisible(true);
+				String absPath = fDialog.getDirectory() + fDialog.getFile();
+				folderName = fDialog.getDirectory();
+				// File f = new File(path);
+				saveTo = absPath;
+				if (saveTo != null) {
+					textFieldResult.setText(saveTo);
 				}
 
 			}
@@ -241,12 +307,13 @@ public class Frame1 {
 		buttonResult.setBounds(376, 159, 89, 23);
 		frame.getContentPane().add(buttonResult);
 
-		JLabel labelResultWarning = new JLabel("");
-		labelResultWarning.setBounds(50, 187, 415, 14);
-		frame.getContentPane().add(labelResultWarning);
-		
-		//====Encrypt Section====
-		
+		labelLoading = new JLabel("");
+		labelLoading.setBounds(124, 201, 261, 14);
+		labelLoading.setForeground(Color.GREEN);
+		frame.getContentPane().add(labelLoading);
+
+		// ====Encrypt Section====
+
 		// button for encrypt
 		JButton buttonEncrypt = new JButton("Encrpt");
 		buttonEncrypt.setBounds(79, 237, 151, 43);
@@ -254,17 +321,22 @@ public class Frame1 {
 		buttonEncrypt.setBackground(Color.LIGHT_GRAY);
 		buttonEncrypt.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
+
+				saveTo += extensionName;
 				labelTextWarning.setText("");
 				labelKeyWarning.setText("");
-
+				labelResultWarning.setText("");
 				// make sure data and key is not null
 				try {
-					if (inputData != null && keyBytes != null) {
+					if (inputData != null && keyBytes != null && !textFieldResult.getText().equals("")) {
+						System.out.println("masuk ini");
+						labelLoading.setText("Please wait unitl the process is finished");
+
 						encrypt(keyBytes, ivBytes, inputData);
 					} else {
 						if (inputData == null) {
 							labelTextWarning.setForeground(Color.RED);
-							labelTextWarning.setText("Please input the data");
+							labelTextWarning.setText("" + "Please input the data");
 							textFieldData.setText("");
 						}
 						if (keyBytes == null) {
@@ -272,12 +344,15 @@ public class Frame1 {
 							labelKeyWarning.setText("Please input the key");
 							textFieldKey.setText("");
 						}
-						if(saveTo==null){
+						if (textFieldResult.getText().equals("")) {
 							labelResultWarning.setForeground(Color.RED);
 							labelResultWarning.setText("Please input destination folder");
 							textFieldResult.setText("");
 						}
 					}
+
+				} catch (OutOfMemoryError e0) {
+					JOptionPane.showMessageDialog(null, "Out of Memmory Eror. The file is too big ");
 
 				} catch (Exception e1) {
 					// TODO Auto-generated catch block
@@ -287,16 +362,20 @@ public class Frame1 {
 			}
 		});
 		frame.getContentPane().add(buttonEncrypt);
-		
+
 		//// ======Decrypt Section=====
 		JButton buttonDecrypt = new JButton("Decrypt");
 		buttonDecrypt.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
+				saveTo += extensionName;
 				labelTextWarning.setText("");
 				labelKeyWarning.setText("");
+				labelResultWarning.setText("");
 				try {
-					if (inputData != null && keyBytes != null) {
-						decrypt(keyBytes, ivBytes);
+					if (inputData != null && keyBytes != null && !textFieldResult.getText().equals("")) {
+						labelLoading.setText("Please wait unitl the process is finished");
+
+						decrypt(keyBytes, ivBytes, inputData);
 					} else {
 						if (inputData == null) {
 							labelTextWarning.setForeground(Color.RED);
@@ -308,7 +387,7 @@ public class Frame1 {
 							labelKeyWarning.setText("Please input the key");
 							textFieldKey.setText("");
 						}
-						if(saveTo==null){
+						if (textFieldResult.getText().equals("")) {
 							labelResultWarning.setForeground(Color.RED);
 							labelResultWarning.setText("Please input destination folder");
 							textFieldResult.setText("");
@@ -331,7 +410,11 @@ public class Frame1 {
 		buttonOpenResult.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				try {
-					Desktop.getDesktop().open(new File(saveTo));
+					if(folderName!=null){
+						Desktop.getDesktop().open(new File(folderName));	
+					}else{
+						JOptionPane.showMessageDialog(null, "Do the encryption/decryption first");
+					}
 				} catch (IOException e1) {
 					// TODO Auto-generated catch block
 					e1.printStackTrace();
@@ -342,8 +425,6 @@ public class Frame1 {
 		buttonOpenResult.setBackground(Color.LIGHT_GRAY);
 		buttonOpenResult.setBounds(174, 306, 151, 43);
 		frame.getContentPane().add(buttonOpenResult);
-		
-		
 
 	}
 
@@ -362,17 +443,21 @@ public class Frame1 {
 			bOut.write(ch);
 		}
 
+		cIn.close();
+
 		byte[] cipherText = bOut.toByteArray();
 
-		FileOutputStream fos = new FileOutputStream(saveTo+"\\encrypted"+filename);
+		FileOutputStream fos = new FileOutputStream(saveTo);
 		fos.write(cipherText);
 		fos.close();
 
+		labelLoading.setText("");
+		JOptionPane.showMessageDialog(null, "Finished!");
 		System.out.println("encrypt selesai");
 
 	}
 
-	public void decrypt(byte[] keyBytes, byte[] ivBytes) throws Exception {
+	public void decrypt(byte[] keyBytes, byte[] ivBytes, byte[] inputData) throws Exception {
 		SecretKeySpec key = new SecretKeySpec(keyBytes, "AES");
 		IvParameterSpec ivspec = new IvParameterSpec(ivBytes);
 		Cipher cipher = Cipher.getInstance("AES/CTR/PKCS5Padding");
@@ -386,10 +471,12 @@ public class Frame1 {
 		cOut.close();
 		// System.out.println("plain: " + new String(bOut.toByteArray()));
 
-		FileOutputStream fos2 = new FileOutputStream(saveTo+"\\decrypted"+filename);
+		FileOutputStream fos2 = new FileOutputStream(saveTo);
 		fos2.write(bOut.toByteArray());
 		fos2.close();
 
+		labelLoading.setText("");
+		JOptionPane.showMessageDialog(null, "Finished!");
 		System.out.println("decrypt selesai");
 	}
 
