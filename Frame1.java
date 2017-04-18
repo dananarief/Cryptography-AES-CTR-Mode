@@ -23,6 +23,7 @@ import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
+import java.security.Security;
 import java.util.Arrays;
 import java.awt.event.ActionEvent;
 import java.awt.Color;
@@ -40,6 +41,7 @@ public class Frame1 {
 	// set iv static as counter
 	private byte[] ivBytes = new byte[] { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00 };
+
 	// set default ket
 	// key
 	byte[] keyBytes = null;
@@ -77,20 +79,14 @@ public class Frame1 {
 		initialize();
 	}
 
-	static void setFinalStatic(Field field, Object newValue) throws Exception {
-		field.setAccessible(true);
-
-		Field modifiersField = Field.class.getDeclaredField("modifiers");
-		modifiersField.setAccessible(true);
-		modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-
-		field.set(null, newValue);
-	}
 
 	/**
 	 * Initialize the contents of the frame.
 	 */
 	private void initialize() {
+
+		// Security.addProvider(new
+		// org.bouncycastle.jce.provider.BouncyCastleProvider());
 
 		int max;
 		try {
@@ -103,12 +99,6 @@ public class Frame1 {
 			e3.printStackTrace();
 		}
 
-		try {
-			// setFinalStatic(Boolean.class.getField("FALSE"), true);
-		} catch (Exception e2) {
-			// TODO Auto-generated catch block
-			e2.printStackTrace();
-		}
 
 		frame = new JFrame();
 		frame.setBounds(100, 100, 530, 450);
@@ -142,7 +132,6 @@ public class Frame1 {
 			public void actionPerformed(ActionEvent e) {
 				labelTextWarning.setText("");
 				JFileChooser chooser = new JFileChooser(new File(System.getProperty("user.home") + "\\Desktop"));
-				// chooser.setCurrentDirectory(new java.io.File("."));
 				chooser.setDialogTitle("Select file to process");
 				chooser.setAcceptAllFileFilterUsed(false);
 
@@ -153,13 +142,12 @@ public class Frame1 {
 					String absPath = dataFile.getAbsolutePath();
 
 					extensionName = filename.substring(filename.indexOf("."));
-					System.out.println(extensionName);
 					textFieldData.setText(absPath);
 
 					try {
 						// get byte from plaintext
 						inputData = Files.readAllBytes(Paths.get(absPath));
-						System.out.println(inputData.length);
+
 					} catch (IOException e1) {
 						// TODO Auto-generated catch block
 						e1.printStackTrace();
@@ -207,7 +195,6 @@ public class Frame1 {
 				// TODO Auto-generated method stub
 				labelKeyWarning.setText("");
 				JFileChooser chooser = new JFileChooser(new File(System.getProperty("user.home") + "\\Desktop"));
-				// chooser.setCurrentDirectory(new java.io.File("."));
 				chooser.setDialogTitle("Select file to process");
 				chooser.setAcceptAllFileFilterUsed(false);
 
@@ -221,18 +208,15 @@ public class Frame1 {
 
 						String stringInputKey = readFile(absPath);
 						int keylength = stringInputKey.length();
-						// JOptionPane.showMessageDialog(null, "Your java
-						// version can't process key more than 128 bit. Please
-						// install JCE Policy");
 						if (keylength == 32 || keylength == 48 || keylength == 64) {
 							if (keylength != 32 && !isKeyUnlimitedVersion) {
 								JOptionPane.showMessageDialog(null,
 										"Your java version can't process key more than 128 bit. Please install JCE Policy");
 							} else {
 								if (isHex(stringInputKey)) {
-									System.out.println(stringInputKey);
+									
 									keyBytes = hexStringToByteArray(stringInputKey);
-									System.out.println(Arrays.toString(keyBytes));
+									
 								} else {
 									System.err.println(
 											"AES key [" + stringInputKey + "] must be 32 or 48 or 64 hex digits long.");
@@ -296,7 +280,6 @@ public class Frame1 {
 				fDialog.setVisible(true);
 				String absPath = fDialog.getDirectory() + fDialog.getFile();
 				folderName = fDialog.getDirectory();
-				// File f = new File(path);
 				saveTo = absPath;
 				if (saveTo != null) {
 					textFieldResult.setText(saveTo);
@@ -329,7 +312,6 @@ public class Frame1 {
 				// make sure data and key is not null
 				try {
 					if (inputData != null && keyBytes != null && !textFieldResult.getText().equals("")) {
-						System.out.println("masuk ini");
 						labelLoading.setText("Please wait unitl the process is finished");
 
 						encrypt(keyBytes, ivBytes, inputData);
@@ -410,9 +392,9 @@ public class Frame1 {
 		buttonOpenResult.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				try {
-					if(folderName!=null){
-						Desktop.getDesktop().open(new File(folderName));	
-					}else{
+					if (folderName != null) {
+						Desktop.getDesktop().open(new File(folderName));
+					} else {
 						JOptionPane.showMessageDialog(null, "Do the encryption/decryption first");
 					}
 				} catch (IOException e1) {
@@ -431,9 +413,11 @@ public class Frame1 {
 	public void encrypt(byte[] keyBytes, byte[] ivBytes, byte[] plainText) throws Exception {
 		SecretKeySpec key = new SecretKeySpec(keyBytes, "AES");
 		IvParameterSpec ivspec = new IvParameterSpec(ivBytes);
-		Cipher cipher = Cipher.getInstance("AES/CTR/PKCS5Padding");
-
+		// Cipher cipher = Cipher.getInstance("AES/CTR/PKCS5Padding","BC");
+		plainText = addBlockPadd(plainText);
+		Cipher cipher = Cipher.getInstance("AES/CTR/NoPadding");
 		cipher.init(Cipher.ENCRYPT_MODE, key, ivspec);
+		
 		ByteArrayInputStream bIn = new ByteArrayInputStream(plainText);
 		CipherInputStream cIn = new CipherInputStream(bIn, cipher);
 		ByteArrayOutputStream bOut = new ByteArrayOutputStream();
@@ -460,19 +444,19 @@ public class Frame1 {
 	public void decrypt(byte[] keyBytes, byte[] ivBytes, byte[] inputData) throws Exception {
 		SecretKeySpec key = new SecretKeySpec(keyBytes, "AES");
 		IvParameterSpec ivspec = new IvParameterSpec(ivBytes);
-		Cipher cipher = Cipher.getInstance("AES/CTR/PKCS5Padding");
-
+		// Cipher cipher = Cipher.getInstance("AES/CTR/PKCS5Padding","BC");
+		Cipher cipher = Cipher.getInstance("AES/CTR/NoPadding");
 		cipher.init(Cipher.DECRYPT_MODE, key, ivspec);
 		ByteArrayOutputStream bOut = new ByteArrayOutputStream();
 		CipherOutputStream cOut = new CipherOutputStream(bOut, cipher);
 
 		byte[] cipherText = inputData;
+		
 		cOut.write(cipherText);
 		cOut.close();
-		// System.out.println("plain: " + new String(bOut.toByteArray()));
 
 		FileOutputStream fos2 = new FileOutputStream(saveTo);
-		fos2.write(bOut.toByteArray());
+		fos2.write(removeBlockPadd(bOut.toByteArray()));
 		fos2.close();
 
 		labelLoading.setText("");
@@ -515,10 +499,103 @@ public class Frame1 {
 
 		while (i < len) {
 			ch = hex.charAt(i++);
-			System.out.println("ch" + ch);
+			
 			if (!((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f')))
 				return false;
 		}
 		return true;
+	}
+
+	//method convert int to hex in byte
+	public static byte convertTohexByte(int a) {
+		byte result = 0x00;
+		switch (a) {
+		case 1:
+			result = 0x01;
+			break;
+		case 2:
+			result = 0x02;
+			break;
+		case 3:
+			result = 0x03;
+			break;
+		case 4:
+			result = 0x04;
+			break;
+		case 5:
+			result = 0x05;
+			break;
+		case 6:
+			result = 0x06;
+			break;
+		case 7:
+			result = 0x07;
+			break;
+		case 8:
+			result = 0x08;
+			break;
+		case 9:
+			result = 0x09;
+			break;
+		case 10:
+			result = 0x0A;
+			break;
+		case 11:
+			result = 0x0B;
+			break;
+		case 12:
+			result = 0x0C;
+			break;
+		case 13:
+			result = 0x0D;
+			break;
+		case 14:
+			result = 0x0E;
+			break;
+		case 15:
+			result = 0x0F;
+			break;
+		case 16:
+			result = 0x10;
+			break;
+		}
+
+		return result;
+	}
+
+	//method to join two array, for new array after add padding
+	public byte[] concat(byte[] a, byte[] b) {
+		int aLen = a.length;
+		int bLen = b.length;
+		byte[] c = new byte[aLen + bLen];
+		System.arraycopy(a, 0, c, 0, aLen);
+		System.arraycopy(b, 0, c, aLen, bLen);
+		return c;
+	}
+
+	//method to add block when padding pkcs5
+	public byte[] addBlockPadd(byte[] inputData) {
+		int sisaPanjang = 16 - (inputData.length % 16);
+
+		byte[] additionalArray = new byte[sisaPanjang];
+		byte additional = convertTohexByte(sisaPanjang);
+		
+		for (int i = 0; i < sisaPanjang; i++) {
+			additionalArray[i] = additional;
+		}
+		
+		inputData = concat(inputData, additionalArray);
+		
+		return inputData;
+	}
+
+	//method to remove block when padding pkcs5
+	public byte[] removeBlockPadd(byte[] inputData) {
+		int panjangbyte = inputData.length;
+		int additional = inputData[panjangbyte-1];
+		byte[] result = new byte[panjangbyte - additional];
+		System.arraycopy(inputData, 0, result, 0, result.length);
+		return result;
+
 	}
 }
