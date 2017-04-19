@@ -33,6 +33,16 @@ import javax.swing.JTextField;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 
+/**
+ * 
+ * @author Danan Arief Desprianto (dananarief@gmail.com) & Diego Perdana
+ * 
+ *         this program is for Cryptography assignment in University of
+ *         Indonesia
+ * 
+ *         this program using AES Counter algorithm with pkcs5padding for
+ *         encrypt and decrypt
+ */
 public class Frame1 {
 
 	private JFrame frame;
@@ -79,7 +89,6 @@ public class Frame1 {
 		initialize();
 	}
 
-
 	/**
 	 * Initialize the contents of the frame.
 	 */
@@ -98,7 +107,6 @@ public class Frame1 {
 			// TODO Auto-generated catch block
 			e3.printStackTrace();
 		}
-
 
 		frame = new JFrame();
 		frame.setBounds(100, 100, 530, 450);
@@ -141,7 +149,7 @@ public class Frame1 {
 
 					String absPath = dataFile.getAbsolutePath();
 
-					extensionName = filename.substring(filename.indexOf("."));
+					extensionName = filename.substring(filename.lastIndexOf("."));
 					textFieldData.setText(absPath);
 
 					try {
@@ -214,9 +222,9 @@ public class Frame1 {
 										"Your java version can't process key more than 128 bit. Please install JCE Policy");
 							} else {
 								if (isHex(stringInputKey)) {
-									
+
 									keyBytes = hexStringToByteArray(stringInputKey);
-									
+
 								} else {
 									System.err.println(
 											"AES key [" + stringInputKey + "] must be 32 or 48 or 64 hex digits long.");
@@ -417,7 +425,7 @@ public class Frame1 {
 		plainText = addBlockPadd(plainText);
 		Cipher cipher = Cipher.getInstance("AES/CTR/NoPadding");
 		cipher.init(Cipher.ENCRYPT_MODE, key, ivspec);
-		
+
 		ByteArrayInputStream bIn = new ByteArrayInputStream(plainText);
 		CipherInputStream cIn = new CipherInputStream(bIn, cipher);
 		ByteArrayOutputStream bOut = new ByteArrayOutputStream();
@@ -451,7 +459,7 @@ public class Frame1 {
 		CipherOutputStream cOut = new CipherOutputStream(bOut, cipher);
 
 		byte[] cipherText = inputData;
-		
+
 		cOut.write(cipherText);
 		cOut.close();
 
@@ -499,14 +507,14 @@ public class Frame1 {
 
 		while (i < len) {
 			ch = hex.charAt(i++);
-			
+
 			if (!((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f')))
 				return false;
 		}
 		return true;
 	}
 
-	//method convert int to hex in byte
+	// method convert int to hex in byte
 	public static byte convertTohexByte(int a) {
 		byte result = 0x00;
 		switch (a) {
@@ -563,7 +571,7 @@ public class Frame1 {
 		return result;
 	}
 
-	//method to join two array, for new array after add padding
+	// method to join two array, for new array after add padding
 	public byte[] concat(byte[] a, byte[] b) {
 		int aLen = a.length;
 		int bLen = b.length;
@@ -573,26 +581,26 @@ public class Frame1 {
 		return c;
 	}
 
-	//method to add block when padding pkcs5
+	// method to add block when padding pkcs5
 	public byte[] addBlockPadd(byte[] inputData) {
 		int sisaPanjang = 16 - (inputData.length % 16);
 
 		byte[] additionalArray = new byte[sisaPanjang];
 		byte additional = convertTohexByte(sisaPanjang);
-		
+
 		for (int i = 0; i < sisaPanjang; i++) {
 			additionalArray[i] = additional;
 		}
-		
+
 		inputData = concat(inputData, additionalArray);
-		
+
 		return inputData;
 	}
 
-	//method to remove block when padding pkcs5
+	// method to remove block when padding pkcs5
 	public byte[] removeBlockPadd(byte[] inputData) {
 		int panjangbyte = inputData.length;
-		int additional = inputData[panjangbyte-1];
+		int additional = inputData[panjangbyte - 1];
 		byte[] result = new byte[panjangbyte - additional];
 		System.arraycopy(inputData, 0, result, 0, result.length);
 		return result;
